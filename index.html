@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#8fd3ff">
+<title>Kebun Hewan Bunyi</title>
+<style>
+:root{--bg:#dff3ff;--bar:#ffffffd9;--ink:#2b3a55;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d2a3d;--bar:#33425ed9;--ink:#f1f5ff;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d2a3d;--bar:#33425ed9;--ink:#f1f5ff;color-scheme:dark}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column}
+#bar{display:flex;gap:10px;padding:10px 12px 0;align-items:center}
+#prompt{flex:1;background:var(--bar);border-radius:28px;padding:14px 18px;font-size:20px;font-weight:700;text-align:center}
+.ib{width:60px;height:60px;border:0;border-radius:50%;background:var(--bar);font-size:28px;color:var(--ink)}
+.ib:active{transform:scale(.92)}
+#zoo{flex:1;min-height:0;display:grid;gap:12px;padding:12px;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(4,1fr)}
+@media (orientation:landscape){#zoo{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr)}}
+.card{border:0;border-radius:30px;background:var(--c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0;color:#2b3a55;box-shadow:0 6px 0 #0000001f}
+.em{font-size:clamp(48px,min(17vw,11vh),120px);line-height:1.1;animation:float 3s ease-in-out infinite}
+.nm{font-size:16px;font-weight:700;opacity:.7}
+@media (orientation:landscape){.em{font-size:clamp(48px,min(11vw,20vh),120px)}}
+.pop{animation:pop .6s}
+.wob{animation:wob .5s 2}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes pop{0%{transform:scale(1)}30%{transform:scale(1.15) rotate(-5deg)}60%{transform:scale(.96) rotate(4deg)}100%{transform:scale(1)}}
+@keyframes wob{0%,100%{transform:rotate(0)}25%{transform:rotate(-7deg)}75%{transform:rotate(7deg)}}
+.sp{position:fixed;pointer-events:none;font-size:28px;z-index:5;animation:fly 1s ease-out forwards}
+@keyframes fly{from{opacity:1;transform:translate(-50%,-50%)}to{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.6)}}
+#rest{position:fixed;inset:0;background:#1d2a3df2;color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:10;text-align:center;padding:24px}
+#rest .big{font-size:84px}
+#rest p{font-size:24px;margin:0;font-weight:700}
+#hold{border:0;border-radius:24px;padding:16px 24px;font-size:16px;background:#ffffff26;color:#fff}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bar">
+    <div id="prompt">Ayo main! 👆</div>
+    <button class="ib" id="bMode" aria-label="Mode cari hewan">🔍</button>
+    <button class="ib" id="bMute" aria-label="Suara">🔊</button>
+  </div>
+  <div id="zoo"></div>
+</div>
+<div id="rest">
+  <div class="big">😴</div>
+  <p>Istirahat dulu yuk!</p>
+  <button id="hold">Orang tua: tahan 2 detik untuk lanjut</button>
+</div>
+<script>
+const A=[
+ {n:'Sapi',e:'🐄',c:'#ffe3c2'},{n:'Kucing',e:'🐱',c:'#ffd9e6'},
+ {n:'Anjing',e:'🐶',c:'#e8dcc8'},{n:'Ayam',e:'🐔',c:'#fff3b8'},
+ {n:'Bebek',e:'🦆',c:'#d4f1ff'},{n:'Domba',e:'🐑',c:'#ece6ff'},
+ {n:'Kuda',e:'🐴',c:'#f5d9c0'},{n:'Katak',e:'🐸',c:'#d3f5cf'}
+];
+let ctx=null,muted=false,mode='bebas',target=-1,tSay,tNext,tHint,tRest;
+
+function ac(){
+  if(!ctx){const C=window.AudioContext||window.webkitAudioContext;if(C)ctx=new C()}
+  if(ctx&&ctx.state==='suspended')ctx.resume();
+  return ctx;
+}
+function tone(type,f0,f1,st,d,v=.2,vh=0,vd=0){
+  const c=ac();if(!c||muted)return;
+  const o=c.createOscillator(),g=c.createGain(),f=c.createBiquadFilter(),t0=c.currentTime+st;
+  f.type='lowpass';f.frequency.value=2200;
+  o.type=type;
+  o.frequency.setValueAtTime(f0,t0);
+  o.frequency.linearRampToValueAtTime(f1,t0+d);
+  if(vh){
+    const l=c.createOscillator(),lg=c.createGain();
+    l.frequency.value=vh;lg.gain.value=vd;
+    l.connect(lg);lg.connect(o.frequency);l.start(t0);l.stop(t0+d+.05);
+  }
+  g.gain.setValueAtTime(0,t0);
+  g.gain.linearRampToValueAtTime(v,t0+.04);
+  g.gain.linearRampToValueAtTime(0,t0+d);
+  o.connect(f);f.connect(g);g.connect(c.destination);
+  o.start(t0);o.stop(t0+d+.05);
+}
+const S=[
+ ()=>tone('sawtooth',150,120,0,1,.2,5,6),
+ ()=>{tone('triangle',500,850,0,.25);tone('triangle',850,450,.25,.45)},
+ ()=>{tone('square',300,180,0,.15,.13);tone('square',300,180,.25,.15,.13)},
+ ()=>{tone('square',500,900,0,.15,.1);tone('square',700,1000,.2,.15,.1);tone('square',800,600,.4,.5,.1,8,30)},
+ ()=>{[0,.3].forEach(s=>tone('sawtooth',550,420,s,.2,.13,30,20))},
+ ()=>tone('sawtooth',380,340,0,.9,.16,22,25),
+ ()=>{tone('sawtooth',700,1000,0,.2,.13);tone('sawtooth',1000,500,.2,.7,.13,14,40)},
+ ()=>{[0,.18,.36].forEach(s=>tone('square',220,320,s,.1,.1))}
+];
+function say(t){
+  if(muted||!('speechSynthesis' in window))return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(t);
+  u.lang='id-ID';u.rate=.8;u.pitch=1.3;
+  speechSynthesis.speak(u);
+}
+function anim(el,c){el.classList.remove('pop','wob');void el.offsetWidth;el.classList.add(c)}
+function burst(x,y,n,list){
+  for(let k=0;k<n;k++){
+    const s=document.createElement('span'),a=Math.random()*6.28,r=60+Math.random()*90;
+    s.className='sp';s.textContent=list[k%list.length];
+    s.style.cssText=`left:${x}px;top:${y}px;--dx:${Math.cos(a)*r}px;--dy:${Math.sin(a)*r}px`;
+    document.body.appendChild(s);
+    setTimeout(()=>s.remove(),1000);
+  }
+}
+const cards=[];
+const zoo=document.getElementById('zoo'),prompt_=document.getElementById('prompt');
+A.forEach((a,i)=>{
+  const b=document.createElement('button');
+  b.className='card';b.style.setProperty('--c',a.c);b.setAttribute('aria-label',a.n);
+  b.innerHTML=`<span class="em" style="animation-delay:${i*.35}s">${a.e}</span><span class="nm">${a.n}</span>`;
+  b.addEventListener('pointerdown',e=>tap(i,b,e));
+  zoo.appendChild(b);cards.push(b);
+});
+
+function tap(i,el,e){
+  ac();
+  clearTimeout(tSay);clearTimeout(tNext);clearTimeout(tHint);
+  S[i]();
+  if(mode==='bebas'){
+    anim(el,'pop');burst(e.clientX,e.clientY,6,['⭐','✨','💛']);
+    tSay=setTimeout(()=>say(A[i].n),900);
+  }else if(i===target){
+    anim(el,'pop');burst(e.clientX,e.clientY,16,['⭐','✨','🎉','💖','🎈']);
+    tSay=setTimeout(()=>say('Pintar! '+A[i].n),900);
+    tNext=setTimeout(newTarget,2800);
+  }else{
+    anim(el,'wob');
+    tSay=setTimeout(()=>say(A[i].n+'. Mana '+A[target].n+'?'),900);
+    tHint=setTimeout(()=>anim(cards[target],'wob'),3500);
+  }
+}
+function newTarget(){
+  let t;do{t=Math.floor(Math.random()*A.length)}while(t===target);
+  target=t;
+  prompt_.textContent='🔊 Mana '+A[t].n.toLowerCase()+'?';
+  setTimeout(()=>say('Mana '+A[t].n+'?'),300);
+  clearTimeout(tHint);
+  tHint=setTimeout(()=>anim(cards[target],'wob'),8000);
+}
+document.getElementById('bMode').addEventListener('click',e=>{
+  ac();clearTimeout(tSay);clearTimeout(tNext);clearTimeout(tHint);
+  if(mode==='bebas'){mode='cari';e.currentTarget.textContent='🎈';target=-1;newTarget()}
+  else{mode='bebas';e.currentTarget.textContent='🔍';prompt_.textContent='Ayo main! 👆';if('speechSynthesis' in window)speechSynthesis.cancel()}
+});
+document.getElementById('bMute').addEventListener('click',e=>{
+  muted=!muted;e.currentTarget.textContent=muted?'🔇':'🔊';
+  if(muted&&'speechSynthesis' in window)speechSynthesis.cancel();
+});
+
+/* Pengingat istirahat tiap 10 menit, dilepas orang tua dengan tahan 2 detik */
+const rest=document.getElementById('rest'),hold=document.getElementById('hold');
+function armRest(){clearTimeout(tRest);tRest=setTimeout(()=>{rest.style.display='flex';say('Istirahat dulu yuk!')},600000)}
+let th;
+hold.addEventListener('pointerdown',()=>{th=setTimeout(()=>{rest.style.display='none';armRest()},2000)});
+['pointerup','pointerleave','pointercancel'].forEach(ev=>hold.addEventListener(ev,()=>clearTimeout(th)));
+armRest();
+
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&'speechSynthesis' in window)speechSynthesis.cancel()});
+document.addEventListener('contextmenu',e=>e.preventDefault());
+</script>
+</body>
+</html>
